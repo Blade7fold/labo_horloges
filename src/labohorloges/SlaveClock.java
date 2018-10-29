@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package labohorloges;
 
 import java.io.IOException;
@@ -21,16 +16,24 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Slave class trying to synchronize a local time with a distant server
+ * To reach this objective we listen on UDP a first time the server time.
+ * Then we calcul the gap with our time.
+ * Then we ask by TCP to the server again the time, To calculate the delay.
+ * with the local time, the delay, and the gap we can obtain the server time synchronized.
  *
  * @author Nathan & Jimmy
  */
 public class SlaveClock {
-    private InetAddress masterAdress;
+    private InetAddress masterAdress; // master ip adress obtained with the first UDP SYNC message
     private AtomicLong gapMasterSlave = new AtomicLong();
     private AtomicLong delay = new AtomicLong();
-    private byte idRequest;
+    private byte idRequest; // id of the current DELAY_REQUEST sent to the server
     private Timer timeSlave = new Timer();
     
+    /**
+     * thread managing the reception of SYNC and FOLLOW_UP message sent by UDP by the server
+     */
     private Thread slaveThread = new Thread(new Runnable() {
         DatagramSocket socketSlave;
         {
@@ -55,6 +58,10 @@ public class SlaveClock {
             }
         }
         
+        /**
+         * method managing the reception of the SYNC and FOLLOW_UP messages
+         * It also start the scheduled task after the first FOLLOW_UP received.
+         */
         @Override
         public void run() {
             try {
@@ -74,7 +81,8 @@ public class SlaveClock {
         }
 
         /**
-         * 
+         * method reading the SYNC and FOLLOW_UP UDP messages sent by the distant server.
+         *
          * @throws IOException 
          */
         private void waitFollowUp() throws IOException {
@@ -82,7 +90,8 @@ public class SlaveClock {
             DatagramPacket masterPacketSync = new DatagramPacket(dataMasterSync, dataMasterSync.length);
             Byte id = null;
             
-            // Treating the case if we receive SYNC
+            // --------------SYNC----------------
+            // we can receive a FOLLOW_UP as first message of lose data, then we wait to receive the complete SYNC message from the server
             while(id == null) {
                 System.out.println("slave wait SYNC");
                 socketMulticastSlave.receive(masterPacketSync);
@@ -92,14 +101,15 @@ public class SlaveClock {
                     masterAdress = masterPacketSync.getAddress();
                 }
             }
-            
-            // Calculating the gap between the slave and the master
             byte[] dataMasterFollow = new byte[2 + Long.BYTES];
+
+            // --------------FOLLOW_UP-------------
             DatagramPacket masterPacketFollow = new DatagramPacket(dataMasterFollow, dataMasterFollow.length);
             // Receiving Follow_Up package
             System.out.println("slave wait FOLLOW_UP");
             socketMulticastSlave.receive(masterPacketFollow);
             System.out.println("FOLLOW_UP " + masterPacketFollow.toString());
+            // we check that the second message is effectively a  complete FOLLOW_UP to update the gap calcul in a secure way
             if(dataMasterFollow[0] == Protocol.FOLLOW_UP &&
                 dataMasterFollow.length == (2 + Long.BYTES) &&
                 dataMasterFollow[1] == id) {
@@ -107,12 +117,20 @@ public class SlaveClock {
                 Arrays.copyOfRange(dataMasterFollow, 2, dataMasterFollow.length);
                 long masterTime = ByteBuffer.wrap(dataMasterFollow).getLong();
                 long slaveTime = System.currentTimeMillis();
+
+                // Calculate the gap between the slave and master current time.
                 gapMasterSlave.set(masterTime - slaveTime);
                 System.out.println("Gap: " + gapMasterSlave.get());
             }
         }
     });
     
+    /**
+     * task managing the DELAY_REQUEST and DELAY_RESPONSE messages.
+     * It is launched at first time after reading a FOLLOW_UP message.
+     * And it launch himself the same task after finishing it and waiting between [4k, 60k] millisecond.
+     * 
+     */
     private TimerTask taskSlave = new TimerTask() {
         DatagramSocket unicastSocket;
         {
@@ -152,10 +170,16 @@ public class SlaveClock {
         }
     };
 
+    /**
+     * launch the thread who manage the SYNC and FOLLOW_UP messages
+     */
     public SlaveClock() {
         slaveThread.start();
     }
     
+    /**
+     * get the current synchronized time
+     */
     public long actualTime() {
         return System.currentTimeMillis() + gapMasterSlave.get() + delay.get();
     }
