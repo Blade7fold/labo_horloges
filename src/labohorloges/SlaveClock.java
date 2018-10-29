@@ -16,6 +16,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -24,9 +25,9 @@ import java.util.logging.Logger;
  * @author Nathan & Jimmy
  */
 public class SlaveClock {
-    private InetAddress slaveAddress;
-    private long gapMasterSlave;
-    private long delay;
+    private InetAddress masterAdress;
+    private AtomicLong gapMasterSlave = new AtomicLong();
+    private AtomicLong delay = new AtomicLong();
     private byte idRequest;
     private Timer timeSlave = new Timer();
     
@@ -34,7 +35,7 @@ public class SlaveClock {
         DatagramSocket socketSlave;
         {
             try {
-                socketSlave = new DatagramSocket(Protocol.PORT_SYNC);
+                socketSlave = new DatagramSocket();
             } catch (SocketException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -45,7 +46,7 @@ public class SlaveClock {
         {
             try {
                 this.group = InetAddress.getByName(Protocol.MULTICAST);
-                this.socketMulticastSlave = new MulticastSocket();
+                this.socketMulticastSlave = new MulticastSocket(Protocol.PORT_SYNC);
                 socketMulticastSlave.joinGroup(group);
             } catch (UnknownHostException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
@@ -61,6 +62,7 @@ public class SlaveClock {
             } catch (IOException ex) {
                 Logger.getLogger(SlaveClock.class.getName()).log(Level.SEVERE, null, ex);
             }
+            timeSlave.schedule(taskSlave, 0, Protocol.SEND_K);
             
             while(true) {
                 try {
@@ -82,14 +84,12 @@ public class SlaveClock {
             
             // Treating the case if we receive SYNC
             while(id == null) {
-                System.out.println("Wait FOLLOW_UP");
-                System.out.println("PORT: " + socketSlave.getPort());
-                socketSlave.receive(masterPacketSync);
-                System.out.println("Check FOLLOW_UP");
+                System.out.println("slave wait SYNC");
+                socketMulticastSlave.receive(masterPacketSync);
                 if(dataMasterSync[0] == Protocol.SYNC && dataMasterSync.length == 2) {
-                    System.out.println("Received FOLLOW_UP");
+                    System.out.println("slave received SYNC");
                     id = dataMasterSync[1];
-                    slaveAddress = masterPacketSync.getAddress();
+                    masterAdress = masterPacketSync.getAddress();
                 }
             }
             
@@ -97,29 +97,27 @@ public class SlaveClock {
             byte[] dataMasterFollow = new byte[2 + Long.BYTES];
             DatagramPacket masterPacketFollow = new DatagramPacket(dataMasterFollow, dataMasterFollow.length);
             // Receiving Follow_Up package
-            socketSlave.receive(masterPacketFollow);
+            System.out.println("slave wait FOLLOW_UP");
+            socketMulticastSlave.receive(masterPacketFollow);
             System.out.println("FOLLOW_UP " + masterPacketFollow.toString());
             if(dataMasterFollow[0] == Protocol.FOLLOW_UP &&
                 dataMasterFollow.length == (2 + Long.BYTES) &&
                 dataMasterFollow[1] == id) {
+                System.out.println("slave received FOLLOW_UP");
                 Arrays.copyOfRange(dataMasterFollow, 2, dataMasterFollow.length);
                 long masterTime = ByteBuffer.wrap(dataMasterFollow).getLong();
                 long slaveTime = System.currentTimeMillis();
-                gapMasterSlave = masterTime - slaveTime;
-                System.out.println("Gap: " + gapMasterSlave);
+                gapMasterSlave.set(masterTime - slaveTime);
+                System.out.println("Gap: " + gapMasterSlave.get());
             }
         }
     });
     
     private TimerTask taskSlave = new TimerTask() {
         DatagramSocket unicastSocket;
-        InetAddress group;
         {
             try {
-                this.group = InetAddress.getByName(Protocol.MULTICAST);
-                this.unicastSocket = new DatagramSocket();
-            } catch (UnknownHostException ex) {
-                Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
+                this.unicastSocket = new DatagramSocket(Protocol.PORT_DELAY_CLIENT);
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -131,19 +129,22 @@ public class SlaveClock {
                 // Send the message REQUEST to the master
                 byte[] dataRequest = {Protocol.DELAY_REQUEST, idRequest};
                 DatagramPacket datagramRequest = new DatagramPacket(dataRequest, dataRequest.length,
-                             group, Protocol.PORT_DELAY);
+                             masterAdress, Protocol.PORT_DELAY_SERVER);
                 long beforeSend = System.currentTimeMillis();
+                System.out.println("slave send DELAY_REQUEST");
                 unicastSocket.send(datagramRequest);
                 
                 // Receiving the second message RESPONSE from the slave
                 byte[] dataResponse = new byte[2 + Long.BYTES];
-                DatagramPacket datagramResponse = new DatagramPacket(dataResponse, dataResponse.length,
-                             group, Protocol.PORT_DELAY);
+                DatagramPacket datagramResponse = new DatagramPacket(dataResponse, dataResponse.length);
+                System.out.println("slave wait DELAY_RESPONSE");
                 unicastSocket.receive(datagramResponse);
                 if(dataResponse[0] == Protocol.DELAY_RESPONSE && dataResponse[1] == idRequest) {
+                    System.out.println("slave received DELAY_RESPONSE");
                     Arrays.copyOfRange(dataResponse, 2, dataResponse.length);
                     long masterTimeResponse = ByteBuffer.wrap(dataResponse).getLong();
-                    delay = (masterTimeResponse - beforeSend) / 2;
+                    delay.set((masterTimeResponse - beforeSend) / 2);
+                    System.out.println("delay: " + delay.get());
                 }
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
@@ -153,18 +154,13 @@ public class SlaveClock {
 
     public SlaveClock() {
         slaveThread.start();
-        System.out.println("Start thread slave");
-        timeSlave.schedule(taskSlave, 0, Protocol.SEND_K);
-        System.out.println("Start slave timer");
     }
     
     public long actualTime() {
-        return System.currentTimeMillis() + gapMasterSlave + delay;
+        return System.currentTimeMillis() + gapMasterSlave.get() + delay.get();
     }
     
     public static void main(String[] args) {
-        System.out.println("Main Slave");
         SlaveClock slave = new SlaveClock();
-        System.out.println("Start slave");
     }
 }

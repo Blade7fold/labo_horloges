@@ -47,34 +47,29 @@ public class MasterClock {
         @Override
         public void run() {
             try {
-                System.out.println("Send SYNC");
                 // Send the message SYNC to the slave
                 byte[] sendSync = {Protocol.SYNC, id};
-                System.out.println("Data " + Arrays.toString(sendSync));
                 DatagramPacket datagram = new DatagramPacket(sendSync, sendSync.length,
                              group, Protocol.PORT_SYNC);
                 socketMulticastMaster.send(datagram);
-                System.out.println("Datagram " + datagram.toString());
+                System.out.println("server sent SYNC with id: " + id);
                 // Time transformation into bytes
                 ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
                 buffer.putLong(System.currentTimeMillis());
                 buffer.array();
                 
-                System.out.println("Buffer " + buffer.capacity());
                 // Sending the second message FOLLOW_UP to the slave
-                System.out.println("Send FOLLOW_UP");
                 byte[] sendFollowUp = new byte[2 + buffer.capacity()];
                 sendFollowUp[0] = Protocol.FOLLOW_UP;
                 sendFollowUp[1] = id;
                 for(int i = 0; i < buffer.capacity(); ++i) {
                     sendFollowUp[i+2] = buffer.get(i);
                 }
-                System.out.println("Data2 " + Arrays.toString(sendFollowUp));
                 
                 DatagramPacket datagram2 = new DatagramPacket(sendFollowUp, sendFollowUp.length,
                              group, Protocol.PORT_SYNC);
                 socketMulticastMaster.send(datagram2);
-                System.out.println("Datagram2 " + datagram2.toString());
+                System.out.println("server sent FOLLOW_UP with id: " + id);
                 ++id;
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
@@ -89,9 +84,7 @@ public class MasterClock {
         DatagramSocket socketMaster;
         {
             try {
-                System.out.println("TRY socket master " + Protocol.PORT_DELAY);
-                socketMaster = new DatagramSocket(Protocol.PORT_DELAY);
-                System.out.println("DONE socket master " + socketMaster.getPort());
+                socketMaster = new DatagramSocket(Protocol.PORT_DELAY_SERVER);
             } catch (SocketException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -102,20 +95,27 @@ public class MasterClock {
             DatagramPacket slavePacket = new DatagramPacket(dataSlave, dataSlave.length);
             try {
                 while(true) {
-                System.out.println("PORT: " + socketMaster.getPort());
+                    System.out.println("server wait DELAY_REQUEST");
                     socketMaster.receive(slavePacket);
                     ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
                     buffer.putLong(System.currentTimeMillis());
                     buffer.array();
                     
-                    byte[] dataMaster = {Protocol.DELAY_RESPONSE, id, buffer.get()};
+                    byte[] sendDELAY_RESPONSE = new byte[2 + buffer.capacity()];
+                    sendDELAY_RESPONSE[0] = Protocol.DELAY_RESPONSE;
+                    sendDELAY_RESPONSE[1] = dataSlave[1];
+                    for(int i = 0; i < buffer.capacity(); ++i) {
+                        sendDELAY_RESPONSE[i+2] = buffer.get(i);
+                    }
                     
                     if(dataSlave[0] == Protocol.DELAY_REQUEST && dataSlave.length == 2) {
-                        DatagramPacket sendToSlave = new DatagramPacket(dataMaster,
-                                                        dataMaster.length,
+                        System.out.println("server received DELAY_REQUEST");
+                        DatagramPacket sendToSlave = new DatagramPacket(sendDELAY_RESPONSE,
+                                                        sendDELAY_RESPONSE.length,
                                                         slavePacket.getAddress(),
                                                         slavePacket.getPort());
                         socketMaster.send(sendToSlave);
+                        System.out.println("server sent DELAY_RESPONSE");
                     }
                 }
             } catch (IOException ex) {
