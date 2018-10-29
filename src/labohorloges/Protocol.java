@@ -7,7 +7,7 @@ package labohorloges;
 
 /**
  *
- * @author Nathan
+ * @author Nathan & Jimmy
  */
 public class Protocol {
     protected static final int PORT_SYNC = 4000;
@@ -17,4 +17,5 @@ public class Protocol {
     protected static final byte FOLLOW_UP = 1;
     protected static final byte DELAY_RESPONSE = 2;
     protected static final byte DELAY_REQUEST = 3;
+    protected static final int SEND_K = 3000;
 }
