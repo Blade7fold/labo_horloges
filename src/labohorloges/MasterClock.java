@@ -31,12 +31,12 @@ public class MasterClock {
      * TimerTask initilized with master class to send messages to slave
      */
     private TimerTask timeTask = new TimerTask() {
-        MulticastSocket socket;
+        MulticastSocket socketMulticastMaster;
         InetAddress group;
         {
             try {
                 this.group = InetAddress.getByName(Protocol.MULTICAST);
-                this.socket = new MulticastSocket();
+                this.socketMulticastMaster = new MulticastSocket();
             } catch (UnknownHostException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             } catch (IOException ex) {
@@ -49,27 +49,33 @@ public class MasterClock {
             try {
                 System.out.println("Send SYNC");
                 // Send the message SYNC to the slave
-                byte[] data = {Protocol.SYNC, id};
-                System.out.println("Data " + Arrays.toString(data));
-                DatagramPacket datagram = new DatagramPacket(data, data.length,
+                byte[] sendSync = {Protocol.SYNC, id};
+                System.out.println("Data " + Arrays.toString(sendSync));
+                DatagramPacket datagram = new DatagramPacket(sendSync, sendSync.length,
                              group, Protocol.PORT_SYNC);
-                socket.send(datagram);
+                socketMulticastMaster.send(datagram);
                 System.out.println("Datagram " + datagram.toString());
                 // Time transformation into bytes
                 ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
                 buffer.putLong(System.currentTimeMillis());
                 buffer.array();
                 
-                System.out.println("Buffer " + buffer.toString());
+                System.out.println("Buffer " + buffer.capacity());
                 // Sending the second message FOLLOW_UP to the slave
                 System.out.println("Send FOLLOW_UP");
-                byte[] data2 = {Protocol.FOLLOW_UP, id++, buffer.get()};
-                System.out.println("Data2 " + Arrays.toString(data2));
+                byte[] sendFollowUp = new byte[2 + buffer.capacity()];
+                sendFollowUp[0] = Protocol.FOLLOW_UP;
+                sendFollowUp[1] = id;
+                for(int i = 0; i < buffer.capacity(); ++i) {
+                    sendFollowUp[i+2] = buffer.get(i);
+                }
+                System.out.println("Data2 " + Arrays.toString(sendFollowUp));
                 
-                DatagramPacket datagram2 = new DatagramPacket(data2, data2.length,
+                DatagramPacket datagram2 = new DatagramPacket(sendFollowUp, sendFollowUp.length,
                              group, Protocol.PORT_SYNC);
-                socket.send(datagram2);
+                socketMulticastMaster.send(datagram2);
                 System.out.println("Datagram2 " + datagram2.toString());
+                ++id;
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -83,7 +89,9 @@ public class MasterClock {
         DatagramSocket socketMaster;
         {
             try {
+                System.out.println("TRY socket master " + Protocol.PORT_DELAY);
                 socketMaster = new DatagramSocket(Protocol.PORT_DELAY);
+                System.out.println("DONE socket master " + socketMaster.getPort());
             } catch (SocketException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -94,6 +102,7 @@ public class MasterClock {
             DatagramPacket slavePacket = new DatagramPacket(dataSlave, dataSlave.length);
             try {
                 while(true) {
+                System.out.println("PORT: " + socketMaster.getPort());
                     socketMaster.receive(slavePacket);
                     ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
                     buffer.putLong(System.currentTimeMillis());

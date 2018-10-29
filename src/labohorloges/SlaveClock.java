@@ -34,19 +34,19 @@ public class SlaveClock {
         DatagramSocket socketSlave;
         {
             try {
-                socketSlave = new DatagramSocket(Protocol.PORT_DELAY);
+                socketSlave = new DatagramSocket(Protocol.PORT_SYNC);
             } catch (SocketException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         
-        MulticastSocket socket;
+        MulticastSocket socketMulticastSlave;
         InetAddress group;
         {
             try {
                 this.group = InetAddress.getByName(Protocol.MULTICAST);
-                this.socket = new MulticastSocket();
-                socket.joinGroup(group);
+                this.socketMulticastSlave = new MulticastSocket();
+                socketMulticastSlave.joinGroup(group);
             } catch (UnknownHostException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             } catch (IOException ex) {
@@ -83,7 +83,9 @@ public class SlaveClock {
             // Treating the case if we receive SYNC
             while(id == null) {
                 System.out.println("Wait FOLLOW_UP");
+                System.out.println("PORT: " + socketSlave.getPort());
                 socketSlave.receive(masterPacketSync);
+                System.out.println("Check FOLLOW_UP");
                 if(dataMasterSync[0] == Protocol.SYNC && dataMasterSync.length == 2) {
                     System.out.println("Received FOLLOW_UP");
                     id = dataMasterSync[1];
