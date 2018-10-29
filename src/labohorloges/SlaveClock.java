@@ -9,6 +9,7 @@ import java.net.MulticastSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,7 +70,7 @@ public class SlaveClock {
             } catch (IOException ex) {
                 Logger.getLogger(SlaveClock.class.getName()).log(Level.SEVERE, null, ex);
             }
-            timeSlave.schedule(taskSlave, 0, Protocol.SEND_K);
+            timeSlave.schedule(taskSlave, 0);
             
             while(true) {
                 try {
@@ -163,10 +164,13 @@ public class SlaveClock {
                     long masterTimeResponse = ByteBuffer.wrap(dataResponse).getLong();
                     delay.set((masterTimeResponse - beforeSend) / 2);
                     System.out.println("delay: " + delay.get());
+                    System.out.println("Time: " + actualTime());
                 }
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
+            
+            timeSlave.schedule(taskSlave, (4 + new Random().nextInt(57)) * Protocol.SEND_K);
         }
     };
 
@@ -181,7 +185,7 @@ public class SlaveClock {
      * get the current synchronized time
      */
     public long actualTime() {
-        return System.currentTimeMillis() + gapMasterSlave.get() + delay.get();
+        return ((System.currentTimeMillis() + gapMasterSlave.get() + delay.get()) / 1000 / 360 / 24 / 365);
     }
     
     public static void main(String[] args) {
