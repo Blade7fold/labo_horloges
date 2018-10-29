@@ -27,7 +27,7 @@ import java.util.logging.Logger;
  */
 public class SlaveClock {
     private InetAddress masterAdress; // master ip adress obtained with the first UDP SYNC message
-    private AtomicLong gapMasterSlave = new AtomicLong();
+    private AtomicLong gapMasterSlave = new AtomicLong(); // atomic makes long safe thread
     private AtomicLong delay = new AtomicLong();
     private byte idRequest; // id of the current DELAY_REQUEST sent to the server
     private Timer timeSlave = new Timer();
