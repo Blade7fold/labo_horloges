@@ -92,11 +92,11 @@ public class SlaveClock {
             // We can receive a FOLLOW_UP as first message of lose data, then we
             // wait to receive the complete SYNC message from the server
             while(id == null) {
-                System.out.println("slave wait SYNC");
+                System.out.println("Slave wait SYNC");
                 socketMulticastSlave.receive(masterPacketSync);
                 if(dataMasterSync[0] == Protocol.SYNC &&
                    dataMasterSync.length == 2) {
-                    System.out.println("slave received SYNC");
+                    System.out.println("Slave received SYNC");
                     id = dataMasterSync[1];
                     masterAdress = masterPacketSync.getAddress();
                 }
@@ -107,9 +107,8 @@ public class SlaveClock {
             DatagramPacket masterPacketFollow = new DatagramPacket(dataMasterFollow,
                                                             dataMasterFollow.length);
             // Receiving Follow_Up package
-            System.out.println("slave wait FOLLOW_UP");
+            System.out.println("Slave wait FOLLOW_UP");
             socketMulticastSlave.receive(masterPacketFollow);
-            System.out.println("FOLLOW_UP " + masterPacketFollow.toString());
             // We check that the second message is effectively a  complete FOLLOW_UP
             // to update the gap calcul in a secure way
             if(dataMasterFollow[0] == Protocol.FOLLOW_UP &&
@@ -134,14 +133,6 @@ public class SlaveClock {
      * [4k, 60k] millisecond.
      */
     private class TaskSlave extends TimerTask {
-        DatagramSocket unicastSocket;
-        {
-            try {
-                this.unicastSocket = new DatagramSocket(Protocol.PORT_DELAY_CLIENT);
-            } catch (IOException ex) {
-                Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
         
         @Override
         public void run() {
@@ -153,7 +144,7 @@ public class SlaveClock {
                                                         masterAdress,
                                                         Protocol.PORT_DELAY_SERVER);
                 long beforeSend = System.currentTimeMillis();
-                System.out.println("slave send DELAY_REQUEST");
+                System.out.println("Slave send DELAY_REQUEST");
                 unicastSocket.send(datagramRequest);
                 
                 // Receiving the second message RESPONSE from the slave
