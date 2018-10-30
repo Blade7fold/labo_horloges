@@ -14,5 +14,5 @@ public class Protocol {
     protected static final byte FOLLOW_UP = 1;      // Byte to verify that the message is a FOLLOW_UP
     protected static final byte DELAY_RESPONSE = 2; // Byte to verify that the message is a DELAY_RESPONSE
     protected static final byte DELAY_REQUEST = 3;  // Byte to verify that the message is a DELAY_REQUEST
-    protected static final int SEND_K = 30;       // Time to wait between messages
+    protected static final int SEND_K = 300;       // Time to wait between messages
 }

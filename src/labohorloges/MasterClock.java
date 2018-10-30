@@ -13,7 +13,6 @@ import java.net.MulticastSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
@@ -124,11 +123,11 @@ public class MasterClock {
                     
                     // ---------------DELAY_RESPONSE---------------
                     // Build the DELAY_RESPONSE message
-                    byte[] sendDELAY_RESPONSE = new byte[2 + buffer.capacity()];
-                    sendDELAY_RESPONSE[0] = Protocol.DELAY_RESPONSE;
-                    sendDELAY_RESPONSE[1] = dataSlave[1];
+                    byte[] send_DELAY_RESPONSE = new byte[2 + buffer.capacity()];
+                    send_DELAY_RESPONSE[0] = Protocol.DELAY_RESPONSE;
+                    send_DELAY_RESPONSE[1] = dataSlave[1];
                     for(int i = 0; i < buffer.capacity(); ++i) {
-                        sendDELAY_RESPONSE[i+2] = buffer.get(i);
+                        send_DELAY_RESPONSE[i+2] = buffer.get(i);
                     }
                     
                     // Check if the DELAY_REQUEST is correct and send back
@@ -136,8 +135,8 @@ public class MasterClock {
                     if(dataSlave[0] == Protocol.DELAY_REQUEST &&
                                                 dataSlave.length == 2) {
                         System.out.println("Server received DELAY_REQUEST");
-                        DatagramPacket sendToSlave = new DatagramPacket(sendDELAY_RESPONSE,
-                                                        sendDELAY_RESPONSE.length,
+                        DatagramPacket sendToSlave = new DatagramPacket(send_DELAY_RESPONSE,
+                                                        send_DELAY_RESPONSE.length,
                                                         slavePacket.getAddress(),
                                                         slavePacket.getPort());
                         socketMaster.send(sendToSlave);

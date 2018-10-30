@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -160,7 +161,7 @@ public class SlaveClock {
                     long masterTimeResponse = ByteBuffer.wrap(dataResponse).getLong();
                     delay.set((masterTimeResponse - beforeSend) / 2);
                     System.out.println("Delay: " + delay.get());
-                    System.out.println("Time: " + actualTime());
+                    System.out.println(actualTime());
                 }
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
@@ -173,6 +174,7 @@ public class SlaveClock {
 
     /**
      * Launch the thread who manage the SYNC and FOLLOW_UP messages
+     * @throws java.net.SocketException
      */
     public SlaveClock() throws SocketException {
         this.unicastSocket = new DatagramSocket();
@@ -181,9 +183,19 @@ public class SlaveClock {
     
     /**
      * Get the current synchronized time
+     * @return The String with the actual time
      */
-    public long actualTime() {
-        return System.currentTimeMillis() + gapMasterSlave.get() + delay.get();
+    public String actualTime() {
+        long time = System.currentTimeMillis() + gapMasterSlave.get() + delay.get();
+        
+        String format = String.format("Acutal time: %02d h, %02d min, %02d sec", 
+                TimeUnit.MILLISECONDS.toHours(time) % 24,
+                TimeUnit.MILLISECONDS.toMinutes(time) - 
+                        TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(time)),
+                TimeUnit.MILLISECONDS.toSeconds(time) -
+                        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(time))
+        );
+        return format;
     }
     
     public static void main(String[] args) throws SocketException {
