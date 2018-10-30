@@ -21,7 +21,7 @@ import java.util.logging.Logger;
 /**
  * Class master that will send to the slaves the current time.
  * It send the time by two way.
- * regularly by UDP on a multicast group.
+ * Regularly by UDP on a multicast group.
  * And on slave request by TCP.
  * 
  * @author Nathan & Jimmy
