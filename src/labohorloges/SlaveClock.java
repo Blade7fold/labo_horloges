@@ -31,17 +31,9 @@ public class SlaveClock {
     private AtomicLong delay = new AtomicLong();
     private byte idRequest;
     private Timer timeSlave = new Timer();
+    private DatagramSocket unicastSocket;
     
     private Thread slaveThread = new Thread(new Runnable() {
-        DatagramSocket socketSlave;
-        {
-            try {
-                socketSlave = new DatagramSocket();
-            } catch (SocketException ex) {
-                Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
-        
         MulticastSocket socketMulticastSlave;
         InetAddress group;
         {
@@ -63,7 +55,7 @@ public class SlaveClock {
             } catch (IOException ex) {
                 Logger.getLogger(SlaveClock.class.getName()).log(Level.SEVERE, null, ex);
             }
-            timeSlave.schedule(taskSlave, 0);
+            timeSlave.schedule(new TaskSlave(), 0);
             
             while(true) {
                 try {
@@ -104,7 +96,7 @@ public class SlaveClock {
             if(dataMasterFollow[0] == Protocol.FOLLOW_UP &&
                 dataMasterFollow.length == (2 + Long.BYTES) &&
                 dataMasterFollow[1] == id) {
-                System.out.println("slave received FOLLOW_UP");
+                System.out.println("Slave received FOLLOW_UP");
                 Arrays.copyOfRange(dataMasterFollow, 2, dataMasterFollow.length);
                 long masterTime = ByteBuffer.wrap(dataMasterFollow).getLong();
                 long slaveTime = System.currentTimeMillis();
@@ -114,15 +106,7 @@ public class SlaveClock {
         }
     });
     
-    private TimerTask taskSlave = new TimerTask() {
-        DatagramSocket unicastSocket;
-        {
-            try {
-                this.unicastSocket = new DatagramSocket(Protocol.PORT_DELAY_CLIENT);
-            } catch (IOException ex) {
-                Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
+    private class TaskSlave extends TimerTask {
         
         @Override
         public void run() {
@@ -138,25 +122,26 @@ public class SlaveClock {
                 // Receiving the second message RESPONSE from the slave
                 byte[] dataResponse = new byte[2 + Long.BYTES];
                 DatagramPacket datagramResponse = new DatagramPacket(dataResponse, dataResponse.length);
-                System.out.println("slave wait DELAY_RESPONSE");
+                System.out.println("Slave wait DELAY_RESPONSE");
                 unicastSocket.receive(datagramResponse);
                 if(dataResponse[0] == Protocol.DELAY_RESPONSE && dataResponse[1] == idRequest) {
-                    System.out.println("slave received DELAY_RESPONSE");
+                    System.out.println("Slave received DELAY_RESPONSE");
                     Arrays.copyOfRange(dataResponse, 2, dataResponse.length);
                     long masterTimeResponse = ByteBuffer.wrap(dataResponse).getLong();
                     delay.set((masterTimeResponse - beforeSend) / 2);
-                    System.out.println("delay: " + delay.get());
+                    System.out.println("Delay: " + delay.get());
                     System.out.println("Time: " + actualTime());
                 }
             } catch (IOException ex) {
                 Logger.getLogger(MasterClock.class.getName()).log(Level.SEVERE, null, ex);
             }
             
-            timeSlave.schedule(taskSlave, (4 + new Random().nextInt(57)) * Protocol.SEND_K);
+            timeSlave.schedule(new TaskSlave(), (4 + new Random().nextInt(57)) * Protocol.SEND_K);
         }
     };
 
-    public SlaveClock() {
+    public SlaveClock() throws SocketException {
+        this.unicastSocket = new DatagramSocket();
         slaveThread.start();
     }
     
@@ -164,7 +149,7 @@ public class SlaveClock {
         return ((System.currentTimeMillis() + gapMasterSlave.get() + delay.get()) / 1000 / 360 / 24 / 365);
     }
     
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SocketException {
         SlaveClock slave = new SlaveClock();
     }
 }
